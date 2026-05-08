@@ -6,7 +6,7 @@ Dashboard interactivo para el análisis y predicción del volumen de tráfico ur
 
 ## Demo
 
-> El link estará disponible aquí una vez desplegado en Google Cloud Run.
+👉 [https://dash-trafico-946953513839.us-central1.run.app](https://dash-trafico-946953513839.us-central1.run.app)
 
 ---
 
