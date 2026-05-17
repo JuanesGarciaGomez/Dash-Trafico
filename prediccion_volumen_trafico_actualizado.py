@@ -546,16 +546,6 @@ HERO = html.Section(id="inicio",children=[
                 }),
             ],style={"display":"flex","justifyContent":"center","gap":"14px","flexWrap":"wrap","marginBottom":"52px"}),
             html.Div([
-                stack_chip("▣","Contexto",4,"/contexto",CYAN),
-                stack_chip("","Exploratorio",9,"/eda",PRIMARY),
-                stack_chip("◎","Prueba",14,"/prueba",ACCENT),
-                stack_chip("◈","Modelos",7,"/modelos",PRIMARY),
-                stack_chip("⌁","Aplicaciones",4,"/insights",CYAN),
-            ],style={"display":"flex","justifyContent":"center","gap":"12px","flexWrap":"wrap","marginBottom":"22px"}),
-            html.Div("Selecciona una sección para continuar",style={
-                "fontFamily":B,"fontSize":"13px","fontWeight":"700","color":"#9aa6b8","marginBottom":"28px",
-            }),
-            html.Div([
                 mini_nav_card("Contexto","Problema, valor de negocio y uso del modelo.","/contexto","",CYAN),
                 mini_nav_card("Exploratorio de datos","Distribuciones, comportamiento temporal y relación con el target.","/eda","",PRIMARY),
                 mini_nav_card("Prueba de Modelo","Ingresa variables y estima el volumen de tráfico.","/prueba","",ACCENT),
@@ -1353,8 +1343,9 @@ app.layout = html.Div([
 
 ], style={
     "backgroundImage": (
-        "linear-gradient(rgba(3,8,18,0.35), rgba(3,8,18,0.35)), "
-        "url('/assets/traffic_bg.jpeg')"
+        "radial-gradient(ellipse at center, rgba(3,8,18,0.15) 0%, rgba(3,8,18,0.80) 100%), "
+        "linear-gradient(rgba(3,8,18,0.60), rgba(3,8,18,0.60)), "
+        "url('/assets/NuevaImagenTrafico.png')"
     ),
     "backgroundSize": "cover",
     "backgroundPosition": "center",
