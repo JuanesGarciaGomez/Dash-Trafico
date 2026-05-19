@@ -1228,63 +1228,98 @@ ABOUT_US = html.Section(
                 "letterSpacing": "-0.03em",
             }),
             html.Div([
-                # Card Luis
+                # Columna izquierda: tarjetas
                 html.Div([
-                    html.H3("Luis Esteban Mariño", style={
-                        "fontFamily": H, "fontSize": "18px", "fontWeight": "800",
+                    html.H3("About Us", style={
+                        "fontFamily": H, "fontSize": "20px", "fontWeight": "800",
                         "color": FG, "margin": "0 0 20px 0", "textAlign": "center",
+                        "letterSpacing": "-0.02em",
                     }),
+                    # Card Luis
                     html.Div([
-                        html.A("GitHub", href="https://github.com/lesteban1828", target="_blank", style={
-                            "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
-                            "padding": "10px 22px", "borderRadius": "999px",
-                            "background": PRIMARY, "color": "#061016",
-                            "fontWeight": "900", "fontFamily": B, "fontSize": "14px",
-                            "textDecoration": "none", "boxShadow": f"0 0 20px {PRIMARY}40",
+                        html.H3("Luis Esteban Mariño", style={
+                            "fontFamily": H, "fontSize": "18px", "fontWeight": "800",
+                            "color": FG, "margin": "0 0 20px 0", "textAlign": "center",
                         }),
-                        html.A("LinkedIn", href="https://www.linkedin.com/in/luis-esteban-mariño-1b7a61406/", target="_blank", style={
-                            "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
-                            "padding": "10px 22px", "borderRadius": "999px",
-                            "background": CYAN, "color": "#061016",
-                            "fontWeight": "900", "fontFamily": B, "fontSize": "14px",
-                            "textDecoration": "none", "boxShadow": f"0 0 20px {CYAN}40",
+                        html.Div([
+                            html.A("GitHub", href="https://github.com/lesteban1828", target="_blank", style={
+                                "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
+                                "padding": "10px 22px", "borderRadius": "999px",
+                                "background": PRIMARY, "color": "#061016",
+                                "fontWeight": "900", "fontFamily": B, "fontSize": "14px",
+                                "textDecoration": "none", "boxShadow": f"0 0 20px {PRIMARY}40",
+                            }),
+                            html.A("LinkedIn", href="https://www.linkedin.com/in/luis-esteban-mariño-1b7a61406/", target="_blank", style={
+                                "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
+                                "padding": "10px 22px", "borderRadius": "999px",
+                                "background": CYAN, "color": "#061016",
+                                "fontWeight": "900", "fontFamily": B, "fontSize": "14px",
+                                "textDecoration": "none", "boxShadow": f"0 0 20px {CYAN}40",
+                            }),
+                        ], style={"display": "flex", "gap": "12px", "justifyContent": "center"}),
+                    ], style={
+                        "background": "rgba(15,22,35,0.85)", "border": f"1px solid {BORDER}",
+                        "borderRadius": "22px", "padding": "32px 28px",
+                        "backdropFilter": "blur(10px)",
+                    }),
+                    # Card Juan
+                    html.Div([
+                        html.H3("Juan Esteban Garcia", style={
+                            "fontFamily": H, "fontSize": "18px", "fontWeight": "800",
+                            "color": FG, "margin": "0 0 20px 0", "textAlign": "center",
                         }),
-                    ], style={"display": "flex", "gap": "12px", "justifyContent": "center"}),
+                        html.Div([
+                            html.A("GitHub", href="https://github.com/JuanesGarciaGomezy", target="_blank", style={
+                                "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
+                                "padding": "10px 22px", "borderRadius": "999px",
+                                "background": PRIMARY, "color": "#061016",
+                                "fontWeight": "900", "fontFamily": B, "fontSize": "14px",
+                                "textDecoration": "none", "boxShadow": f"0 0 20px {PRIMARY}40",
+                            }),
+                            html.A("LinkedIn", href="https://www.linkedin.com/in/juan-esteban-garcia-gomez-49629934a", target="_blank", style={
+                                "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
+                                "padding": "10px 22px", "borderRadius": "999px",
+                                "background": CYAN, "color": "#061016",
+                                "fontWeight": "900", "fontFamily": B, "fontSize": "14px",
+                                "textDecoration": "none", "boxShadow": f"0 0 20px {CYAN}40",
+                            }),
+                        ], style={"display": "flex", "gap": "12px", "justifyContent": "center"}),
+                    ], style={
+                        "background": "rgba(15,22,35,0.85)", "border": f"1px solid {BORDER}",
+                        "borderRadius": "22px", "padding": "32px 28px",
+                        "backdropFilter": "blur(10px)",
+                    }),
                 ], style={
-                    "background": "rgba(15,22,35,0.85)", "border": f"1px solid {BORDER}",
-                    "borderRadius": "22px", "padding": "32px 28px",
-                    "backdropFilter": "blur(10px)", "flex": "1", "minWidth": "240px",
+                    "display": "flex", "flexDirection": "column", "gap": "24px",
+                    "flex": "0 0 auto", "width": "320px",
                 }),
-                # Card Juan
+                # Columna derecha: video
                 html.Div([
-                    html.H3("Juan Esteban Garcia", style={
-                        "fontFamily": H, "fontSize": "18px", "fontWeight": "800",
-                        "color": FG, "margin": "0 0 20px 0", "textAlign": "center",
+                    html.H3("Video Explicativo", style={
+                        "fontFamily": H, "fontSize": "20px", "fontWeight": "800",
+                        "color": FG, "margin": "0 0 16px 0", "textAlign": "center",
+                        "letterSpacing": "-0.02em",
                     }),
-                    html.Div([
-                        html.A("GitHub", href="https://github.com/JuanesGarciaGomezy", target="_blank", style={
-                            "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
-                            "padding": "10px 22px", "borderRadius": "999px",
-                            "background": PRIMARY, "color": "#061016",
-                            "fontWeight": "900", "fontFamily": B, "fontSize": "14px",
-                            "textDecoration": "none", "boxShadow": f"0 0 20px {PRIMARY}40",
-                        }),
-                        html.A("LinkedIn", href="https://www.linkedin.com/in/juan-esteban-garcia-gomez-49629934a", target="_blank", style={
-                            "display": "inline-flex", "alignItems": "center", "justifyContent": "center",
-                            "padding": "10px 22px", "borderRadius": "999px",
-                            "background": CYAN, "color": "#061016",
-                            "fontWeight": "900", "fontFamily": B, "fontSize": "14px",
-                            "textDecoration": "none", "boxShadow": f"0 0 20px {CYAN}40",
-                        }),
-                    ], style={"display": "flex", "gap": "12px", "justifyContent": "center"}),
+                    html.Iframe(
+                        src="https://drive.google.com/file/d/10OMAWGW1HXAEz-RvD7fdLmEjCGhNscMO/preview",
+                        style={
+                            "width": "100%", "flex": "1",
+                            "border": "none", "borderRadius": "12px",
+                            "minHeight": "280px",
+                        },
+                        allow="autoplay",
+                    ),
                 ], style={
+                    "flex": "1", "minWidth": "300px",
                     "background": "rgba(15,22,35,0.85)", "border": f"1px solid {BORDER}",
-                    "borderRadius": "22px", "padding": "32px 28px",
-                    "backdropFilter": "blur(10px)", "flex": "1", "minWidth": "240px",
+                    "borderRadius": "22px", "overflow": "hidden",
+                    "backdropFilter": "blur(10px)", "minHeight": "300px",
+                    "padding": "24px 24px 0 24px",
+                    "display": "flex", "flexDirection": "column",
                 }),
             ], style={
-                "display": "flex", "gap": "24px", "justifyContent": "center",
-                "flexWrap": "wrap", "maxWidth": "680px", "margin": "0 auto",
+                "display": "flex", "gap": "32px", "alignItems": "stretch",
+                "flexWrap": "wrap", "maxWidth": "1100px", "margin": "0 auto",
             }),
         ], style={"maxWidth": "1180px", "margin": "0 auto", "padding": "0 26px"}),
     ],
