@@ -1065,6 +1065,7 @@ EDA = html.Section(id="eda",children=[
             ],style={"display":"flex","gap":"28px","flexWrap":"wrap"}),
         ],style={**card(),"flex":"1.4"}),
     ],style={"display":"flex","gap":"16px","flexWrap":"wrap","marginBottom":"24px"}),
+    html.Div(id="analisis-comp-panel"),
     ]),  # cierre eda-main-content
 
     html.Div(id="eda-etl-panel"),
@@ -1717,6 +1718,7 @@ def update_prediction(hour,dow,month,holiday,temp,humidity,wind_speed,wind_dir,v
     Output("eda-main-content","style"),
     Output("btn-eda-tab","style"),
     Output("btn-etl-tab","style"),
+    Output("analisis-comp-panel","children"),
     Input("btn-eda-tab","n_clicks"),
     Input("btn-etl-tab","n_clicks"),
 )
@@ -1728,7 +1730,7 @@ def toggle_eda_etl(n_eda, n_etl):
 
     etl_active = (n_etl or 0) > (n_eda or 0)
     if not etl_active:
-        return None, _show, _btn_active, _btn_inactive
+        return None, _show, _btn_active, _btn_inactive, ANALISIS_COMP
 
     # ── 1. ¿Por qué? + Fórmula ───────────────────────────────
     header = html.Div([
@@ -1897,7 +1899,7 @@ def toggle_eda_etl(n_eda, n_etl):
     ], style={**card()})
 
     etl_content = html.Div([header, code_section, charts, interpretation])
-    return etl_content, _hide, _btn_inactive, _btn_active
+    return etl_content, _hide, _btn_inactive, _btn_active, None
 
 
 server = app.server
