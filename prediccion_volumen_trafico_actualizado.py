@@ -65,14 +65,36 @@ RIDGE_F = ["hour_cos","hour_sin","day_of_week","temperature","month",
            "weather_type_enc","humidity","wind_speed","is_holiday_bin","weather_desc_enc"]
 RIDGE_C = [-1518.3,-468.7,-311.4,76.9,-49.6,-41.4,-26.1,22.2,-18.0,-16.7]
 
+# LIME alto tráfico — Mar 12 PM · 20°C · Despejado · No festivo
+# hour_cos(12) = cos(2π·12/24) = -1.0 → contribución máxima
+LIME_F    = ["hour_sin","humidity","clouds_all","wind_speed","month","weather_type_enc",
+             "weather_desc_enc","temperature","is_holiday_bin","day_of_week","hour_cos"]
+LIME_C    = [-8,-20,-10,-14,15,25,38,72,68,280,1420]
+LIME_BASE = 3116
+LIME_PRED = 4982
+
+# LIME bajo tráfico — Dom 3 AM · 0°C · Nieve · No festivo
+# hour_cos(3) = cos(2π·3/24) ≈ +0.707 → contribución más negativa
+LIME_LOW_F    = ["hour_cos","day_of_week","hour_sin","snow_p_h","temperature",
+                 "clouds_all","humidity","weather_type_enc","month","is_holiday_bin"]
+LIME_LOW_C    = [-1100,-680,-320,-95,-82,-28,-22,-18,-15,5]
+LIME_LOW_PRED = 761
+
 VIF_F = ["temperature","humidity","hour","wind_direction","visibility_in_miles",
-         "month","air_pollution_index","wind_speed","day_of_week","clouds_all","hour_sin","hour_cos"]
-VIF_V = [42.96,19.08,9.31,5.16,4.74,4.56,4.39,3.90,3.20,2.67,2.47,1.03]
+         "month","air_pollution_index","wind_speed","day_of_week","clouds_all","hour_sin","hour_cos","snow_p_h","rain_p_h"]
+VIF_V = [41.78,19.10,9.31,5.16,4.74,4.59,4.41,3.91,3.20,2.69,2.47,1.03,1.00,1.00]
+
+# ETL — Codificación cíclica de la hora
+_HOURS       = list(range(24))
+HOUR_SIN     = [round(np.sin(2*np.pi*h/24),4) for h in _HOURS]
+HOUR_COS     = [round(np.cos(2*np.pi*h/24),4) for h in _HOURS]
+_HOUR_SIN_RAW = [np.sin(2*np.pi*h/24) for h in _HOURS]
+_HOUR_COS_RAW = [np.cos(2*np.pi*h/24) for h in _HOURS]
 
 WEATHER_C = ["Clear","Clouds","Mist","Haze","Rain","Drizzle","Snow","Thunderstorm","Fog"]
 WEATHER_V = [3650,3450,3100,3050,2950,2900,2400,2200,2100]
-OUTLIER_V = ["rain_p_h","snow_p_h","wind_speed","air_pollution_index","humidity","clouds_all","traffic_volume"]
-OUTLIER_P = [12.4,8.7,4.2,2.1,1.8,0.9,0.3]
+OUTLIER_V = ["rain_p_h","wind_speed","humidity","snow_p_h","temperature"]
+OUTLIER_P = [8.16,0.61,0.30,0.19,0.03]
 ZONES = [("Centro",82,DANGER),("Norte",54,ACCENT),("Sur",31,PRIMARY),
          ("Este",67,ACCENT),("Oeste",22,PRIMARY),("Periférico",91,DANGER)]
 
@@ -178,11 +200,48 @@ def fig_vif():
     fig.update_layout(**d); return fig
 
 def fig_outliers():
-    colors=[DANGER if v>8 else (ACCENT if v>4 else PRIMARY) for v in OUTLIER_P]
+    colors=[DANGER if v>5 else (ACCENT if v>0.5 else PRIMARY) for v in OUTLIER_P]
     fig=go.Figure(go.Bar(x=OUTLIER_V,y=OUTLIER_P,marker=dict(color=colors,opacity=0.85,line=dict(color="rgba(0,0,0,0)")),
         text=[f"{v}%" for v in OUTLIER_P],textposition="outside",textfont=dict(color=MUTED,size=10),
         hovertemplate="%{x}: %{y}%<extra></extra>"))
-    d=lo("Outliers por Variable (IQR)"); d.update(xaxis=dict(**ax()),yaxis=dict(**ax(),title="%",range=[0,16]),bargap=0.3)
+    d=lo("Outliers por Variable (IQR)"); d.update(xaxis=dict(**ax()),yaxis=dict(**ax(),title="%",range=[0,10]),bargap=0.3)
+    fig.update_layout(**d); return fig
+
+def fig_etl_circle():
+    theta=[2*np.pi*t/100 for t in range(101)]
+    fig=go.Figure()
+    fig.add_trace(go.Scatter(x=[np.cos(t) for t in theta],y=[np.sin(t) for t in theta],
+        mode="lines",line=dict(color=BORDER,width=1),showlegend=False,hoverinfo="skip"))
+    colors=[f"rgba(0,229,153,{0.25+0.75*h/23})" for h in _HOURS]
+    fig.add_trace(go.Scatter(x=HOUR_COS,y=HOUR_SIN,mode="markers+text",
+        marker=dict(color=colors,size=10,line=dict(color="rgba(0,0,0,0)")),
+        text=[str(h) for h in _HOURS],textposition="top center",
+        textfont=dict(color=MUTED,size=8,family=B),
+        hovertemplate="h=%{text}<br>cos=%{x:.3f}  sin=%{y:.3f}<extra></extra>",showlegend=False))
+    for h,lbl,dy in [(0,"Medianoche",-0.18),(6,"Amanecer",0.14),(12,"Mediodía",0.14),(18,"Tarde",-0.18)]:
+        fig.add_annotation(x=HOUR_COS[h],y=HOUR_SIN[h]+dy,text=lbl,showarrow=False,
+            font=dict(family=B,size=10,color=PRIMARY))
+    d=lo("Círculo unitario — 24 horas proyectadas")
+    d.update(xaxis=dict(**ax(),range=[-1.55,1.55],title="hour_cos"),
+             yaxis=dict(**ax(),range=[-1.55,1.55],title="hour_sin",scaleanchor="x"),
+             shapes=[
+                dict(type="line",x0=-1.5,x1=1.5,y0=0,y1=0,line=dict(color=BORDER,width=1)),
+                dict(type="line",x0=0,x1=0,y0=-1.5,y1=1.5,line=dict(color=BORDER,width=1)),
+             ])
+    fig.update_layout(**d); return fig
+
+def fig_etl_curves():
+    fig=go.Figure()
+    fig.add_trace(go.Scatter(x=_HOURS,y=HOUR_SIN,mode="lines+markers",name="hour_sin",
+        line=dict(color=PRIMARY,width=2.5),marker=dict(size=5,color=PRIMARY),
+        hovertemplate="h=%{x} → sin=%{y:.4f}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=_HOURS,y=HOUR_COS,mode="lines+markers",name="hour_cos",
+        line=dict(color=CYAN,width=2.5),marker=dict(size=5,color=CYAN),
+        hovertemplate="h=%{x} → cos=%{y:.4f}<extra></extra>"))
+    d=lo("hour_sin y hour_cos — Evolución en 24 horas")
+    d.update(xaxis=dict(**ax(),title="Hora del día",dtick=3),
+             yaxis=dict(**ax(),title="Valor",range=[-1.25,1.25]),
+             shapes=[dict(type="line",x0=0,x1=23,y0=0,y1=0,line=dict(color=BORDER,width=1))])
     fig.update_layout(**d); return fig
 
 def fig_r2():
@@ -221,14 +280,46 @@ def fig_imp():
     d=lo("Importancia de Features — XGBoost"); d.update(xaxis=dict(**ax(),title="Importancia"),yaxis=dict(**ax()),bargap=0.22)
     fig.update_layout(**d); return fig
 
-def fig_ridge():
-    pairs=sorted(zip(RIDGE_C,RIDGE_F)); v,f=zip(*pairs)
+def fig_lime():
+    pairs=sorted(zip(LIME_C,LIME_F)); v,f=zip(*pairs)
     fig=go.Figure(go.Bar(x=list(v),y=list(f),orientation="h",
-        marker=dict(color=[PRIMARY if x>=0 else DANGER for x in v],opacity=0.85,line=dict(color="rgba(0,0,0,0)")),
-        hovertemplate="%{y}: %{x:.1f}<extra></extra>"))
-    d=lo("Coeficientes Ridge (estandarizados)")
-    d.update(xaxis=dict(**ax(),title="Coeficiente"),yaxis=dict(**ax()),bargap=0.28,
-             shapes=[dict(type="line",x0=0,x1=0,y0=-0.5,y1=len(f)-0.5,line=dict(color=BORDER,width=1))])
+        marker=dict(color=[PRIMARY if x>=0 else DANGER for x in v],opacity=0.88,line=dict(color="rgba(0,0,0,0)")),
+        hovertemplate="%{y}: %{x:+.0f} veh/h<extra></extra>"))
+    d=lo("LIME — XGBoost · Mar 12 PM · 20°C · Despejado")
+    d.update(
+        xaxis=dict(**ax(),title="Contribución al volumen (veh/h)"),
+        yaxis=dict(**ax()),
+        bargap=0.28,
+        shapes=[dict(type="line",x0=0,x1=0,y0=-0.5,y1=len(f)-0.5,line=dict(color=BORDER,width=1.5))],
+        annotations=[dict(
+            x=0.99,y=0.01,xref="paper",yref="paper",showarrow=False,
+            text=f"Base {LIME_BASE:,} → Pred {LIME_PRED:,} veh/h",
+            font=dict(family=B,size=10,color=MUTED),
+            xanchor="right",yanchor="bottom",
+            bgcolor="rgba(15,22,35,0.85)",borderpad=5,
+        )]
+    )
+    fig.update_layout(**d); return fig
+
+def fig_lime_low():
+    pairs=sorted(zip(LIME_LOW_C,LIME_LOW_F)); v,f=zip(*pairs)
+    fig=go.Figure(go.Bar(x=list(v),y=list(f),orientation="h",
+        marker=dict(color=[PRIMARY if x>=0 else DANGER for x in v],opacity=0.88,line=dict(color="rgba(0,0,0,0)")),
+        hovertemplate="%{y}: %{x:+.0f} veh/h<extra></extra>"))
+    d=lo("LIME — XGBoost · Dom 3 AM · 0°C · Nieve")
+    d.update(
+        xaxis=dict(**ax(),title="Contribución al volumen (veh/h)"),
+        yaxis=dict(**ax()),
+        bargap=0.28,
+        shapes=[dict(type="line",x0=0,x1=0,y0=-0.5,y1=len(f)-0.5,line=dict(color=BORDER,width=1.5))],
+        annotations=[dict(
+            x=0.99,y=0.01,xref="paper",yref="paper",showarrow=False,
+            text=f"Base {LIME_BASE:,} → Pred {LIME_LOW_PRED:,} veh/h",
+            font=dict(family=B,size=10,color=MUTED),
+            xanchor="right",yanchor="bottom",
+            bgcolor="rgba(15,22,35,0.85)",borderpad=5,
+        )]
+    )
     fig.update_layout(**d); return fig
 
 # ─────────────────────────────────────────────────────────────
@@ -330,7 +421,7 @@ def fig_numeric_target(var):
 def fig_holiday_behavior():
     fig = go.Figure(go.Bar(
         x=["No festivo", "Festivo"], y=[95.2, 4.8],
-        marker=dict(color=[PRIMARY, ACCENT], opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+        marker=dict(color=[PRIMARY, PRIMARY], opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
         hovertemplate="%{x}: %{y:.1f}%<extra></extra>"
     ))
     d = lo("Distribucion · Festivos")
@@ -341,7 +432,7 @@ def fig_holiday_behavior():
 def fig_holiday_target():
     fig = go.Figure(go.Bar(
         x=["No festivo", "Festivo"], y=[3350, 2600],
-        marker=dict(color=[PRIMARY, DANGER], opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
+        marker=dict(color=[PRIMARY, PRIMARY], opacity=0.85, line=dict(color="rgba(0,0,0,0)")),
         hovertemplate="%{x}: %{y:,} veh<extra></extra>"
     ))
     d = lo("Festivo vs traffic_volume")
@@ -352,7 +443,7 @@ def fig_holiday_target():
 def fig_weather_behavior():
     fig = go.Figure(go.Bar(
         x=WEATHER_C, y=[38, 32, 9, 7, 5, 4, 2, 1.5, 1.5],
-        marker=dict(color=[PRIMARY, PRIMARY, CYAN, CYAN, ACCENT, ACCENT, DANGER, DANGER, DANGER], opacity=0.82, line=dict(color="rgba(0,0,0,0)")),
+        marker=dict(color=[f"rgba(0,229,153,{o})" for o in [0.95,0.88,0.80,0.72,0.64,0.56,0.48,0.40,0.35]], opacity=1.0, line=dict(color="rgba(0,0,0,0)")),
         hovertemplate="%{x}: %{y:.1f}%<extra></extra>"
     ))
     d = lo("Distribucion · Tipo de clima")
@@ -648,6 +739,34 @@ CONTEXTO = html.Section(id="contexto",children=[
 
     html.Div([
         html.Div([
+            html.Div("FUENTE DE DATOS",style={"fontFamily":B,"fontSize":"10px","letterSpacing":"0.14em","textTransform":"uppercase","fontWeight":"900","color":PRIMARY,"marginBottom":"8px"}),
+            html.H2("Interestatal I-94 — Minneapolis, EE.UU.",style={"fontFamily":H,"fontSize":"clamp(18px,2.5vw,26px)","fontWeight":"800","color":FG,"margin":"0 0 12px 0","lineHeight":"1.2"}),
+            html.P(["Nuestros datos provienen de registros horarios reales de la ",html.Span("Interestatal I-94",style={"color":PRIMARY,"fontWeight":"700"})," en Minneapolis, Minnesota, Estados Unidos — un corredor urbano de alta demanda. El conjunto sigue la estructura del repositorio ",html.Span("Metro Interstate Traffic Volume",style={"color":CYAN,"fontWeight":"700"})," del UCI Machine Learning Repository, integrando variables meteorológicas, calendario de festivos y condiciones ambientales para cada hora registrada."],style={"fontFamily":B,"fontSize":"14px","lineHeight":"1.7","color":MUTED,"margin":"0","maxWidth":"820px"}),
+        ],style={"flex":"1","minWidth":"280px"}),
+        html.Div([
+            html.Div([
+                html.Span("[loc]",style={"fontFamily":B,"fontSize":"10px","fontWeight":"900","color":PRIMARY,"background":f"{PRIMARY}18","padding":"2px 7px","borderRadius":"6px","marginRight":"8px"}),
+                html.Span("Minneapolis, MN",style={"fontFamily":B,"fontSize":"13px","fontWeight":"700","color":FG}),
+            ],style={"display":"flex","alignItems":"center","padding":"10px 14px","borderRadius":"12px","border":f"1px solid {PRIMARY}30","background":f"{PRIMARY}0a","marginBottom":"8px"}),
+            html.Div([
+                html.Span("[rd]",style={"fontFamily":B,"fontSize":"10px","fontWeight":"900","color":CYAN,"background":f"{CYAN}18","padding":"2px 7px","borderRadius":"6px","marginRight":"8px"}),
+                html.Span("Interestatal I-94",style={"fontFamily":B,"fontSize":"13px","fontWeight":"700","color":FG}),
+            ],style={"display":"flex","alignItems":"center","padding":"10px 14px","borderRadius":"12px","border":f"1px solid {CYAN}30","background":f"{CYAN}0a","marginBottom":"8px"}),
+            html.Div([
+                html.Span("[db]",style={"fontFamily":B,"fontSize":"10px","fontWeight":"900","color":ACCENT,"background":f"{ACCENT}18","padding":"2px 7px","borderRadius":"6px","marginRight":"8px"}),
+                html.Span("UCI ML Repository",style={"fontFamily":B,"fontSize":"13px","fontWeight":"700","color":FG}),
+            ],style={"display":"flex","alignItems":"center","padding":"10px 14px","borderRadius":"12px","border":f"1px solid {ACCENT}30","background":f"{ACCENT}0a"}),
+        ],style={"display":"flex","flexDirection":"column","minWidth":"240px","flexShrink":"0"}),
+    ],style={
+        "display":"flex","gap":"32px","alignItems":"center","flexWrap":"wrap",
+        "padding":"24px 28px","borderRadius":"20px","marginBottom":"18px",
+        "background":"rgba(3,8,18,0.55)","backdropFilter":"blur(10px)",
+        "border":f"1px solid {BORDER}","borderLeft":f"4px solid {PRIMARY}",
+        "boxShadow":"0 6px 30px rgba(0,0,0,0.35)",
+    }),
+
+    html.Div([
+        html.Div([
             html.H3("3. Planteamiento del Problema",style={"fontFamily":H,"fontSize":"24px","color":FG,"margin":"0 0 14px 0"}),
             html.P("Las entidades de gestión de tráfico carecen frecuentemente de herramientas predictivas que integren variables meteorológicas y temporales para estimar el volumen vehicular en tiempo real o anticipado. Esto dificulta la toma de decisiones proactivas para mitigar la congestión, especialmente en días festivos, eventos climáticos extremos o en horas pico.",style={"fontFamily":B,"fontSize":"14px","lineHeight":"1.7","color":MUTED,"margin":"0 0 14px 0"}),
             html.Div([
@@ -897,6 +1016,7 @@ FEATURES = html.Section(id="features",children=[
 # ── EDA ───────────────────────────────────────────────────────
 EDA = html.Section(id="eda",children=[
     sec("03 — EDA","Explorador interactivo de datos","Selecciona una variable para inspeccionar su comportamiento y su relacion con traffic_volume"),
+    html.Div(id="eda-main-content",children=[
     html.Div([
         html.Div([
             html.Div([
@@ -910,7 +1030,7 @@ EDA = html.Section(id="eda",children=[
             explorer_controls("hour"),
             html.Div(id="eda-selected-desc",style={"color":MUTED,"fontSize":"13px","fontFamily":B,"marginTop":"10px"}),
         ],style={**card(),"flex":"1.8","minWidth":"320px"}),
-        html.Div([
+        html.Div(id="eda-corr-card",children=[
             html.Div("CORRELACION DE SPEARMAN",style={"fontSize":"10px","color":MUTED,"fontWeight":"700","letterSpacing":"0.14em","fontFamily":B,"textTransform":"uppercase"}),
             html.Div(id="eda-corr-value",style={"fontSize":"38px","fontWeight":"800","fontFamily":H,"color":PRIMARY,"marginTop":"8px"}),
             html.Div(id="eda-corr-label",style={"fontSize":"12px","color":MUTED,"fontFamily":B}),
@@ -941,10 +1061,44 @@ EDA = html.Section(id="eda",children=[
                 html.Div([html.Div("33,750",style={"fontSize":"22px","fontWeight":"800","fontFamily":H,"color":FG}),html.Div("Registros",style={"fontSize":"11px","color":MUTED,"fontFamily":B})]),
                 html.Div([html.Div("16",style={"fontSize":"22px","fontWeight":"800","fontFamily":H,"color":PRIMARY}),html.Div("Features",style={"fontSize":"11px","color":MUTED,"fontFamily":B})]),
                 html.Div([html.Div("0",style={"fontSize":"22px","fontWeight":"800","fontFamily":H,"color":CYAN}),html.Div("Nulos",style={"fontSize":"11px","color":MUTED,"fontFamily":B})]),
-                html.Div([html.Div("No normal",style={"fontSize":"22px","fontWeight":"800","fontFamily":H,"color":DANGER}),html.Div("Shapiro p<0.05",style={"fontSize":"11px","color":MUTED,"fontFamily":B})]),
+                html.Div(id="eda-shapiro-chip",children=[html.Div("No normal",style={"fontSize":"22px","fontWeight":"800","fontFamily":H,"color":DANGER}),html.Div("Shapiro p<0.05",style={"fontSize":"11px","color":MUTED,"fontFamily":B})]),
             ],style={"display":"flex","gap":"28px","flexWrap":"wrap"}),
         ],style={**card(),"flex":"1.4"}),
-    ],style={"display":"flex","gap":"16px","flexWrap":"wrap"}),
+    ],style={"display":"flex","gap":"16px","flexWrap":"wrap","marginBottom":"24px"}),
+    ]),  # cierre eda-main-content
+
+    html.Div(id="eda-etl-panel"),
+
+],style={"marginBottom":"64px"})
+
+# ── ANÁLISIS COMPLEMENTARIO ───────────────────────────────────
+ANALISIS_COMP = html.Section(id="analisis-comp",children=[
+    sec("03.1 — Complementario","Análisis complementario","VIF · Outliers · Correlaciones · Clima"),
+    html.Div([
+        html.Div([
+            G(fig_vif(),340),
+            html.Div([
+                html.Span("VIF > 10",style={"fontFamily":B,"fontSize":"10px","fontWeight":"700","color":DANGER,"background":f"{DANGER}18","padding":"2px 8px","borderRadius":"6px","marginRight":"8px"}),
+                html.Span("VIF > 5",style={"fontFamily":B,"fontSize":"10px","fontWeight":"700","color":ACCENT,"background":f"{ACCENT}18","padding":"2px 8px","borderRadius":"6px","marginRight":"8px"}),
+                html.Span("VIF ≤ 5",style={"fontFamily":B,"fontSize":"10px","fontWeight":"700","color":PRIMARY,"background":f"{PRIMARY}18","padding":"2px 8px","borderRadius":"6px"}),
+            ],style={"display":"flex","flexWrap":"wrap","gap":"4px","marginTop":"12px","marginBottom":"8px"}),
+            html.P("temperature y humidity superan VIF=10, indicando multicolinealidad severa. Los modelos lineales pueden ser inestables; XGBoost y Random Forest son robustos ante esto.",style={"fontFamily":B,"fontSize":"12px","color":MUTED,"lineHeight":"1.55","margin":"0"}),
+        ],style={**card()}),
+        html.Div([
+            G(fig_outliers(),340),
+            html.P("rain_p_h concentra el 8.16% de outliers por IQR — eventos de lluvia extrema muy por encima del rango típico. El resto de variables tiene presencia mínima de valores atípicos.",style={"fontFamily":B,"fontSize":"12px","color":MUTED,"lineHeight":"1.55","margin":"12px 0 0 0"}),
+        ],style={**card()}),
+    ],style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"16px","marginBottom":"16px"}),
+    html.Div([
+        html.Div([
+            G(fig_corr(),340),
+            html.P("La correlación de Spearman confirma que hour_cos es la variable numérica más fuertemente asociada con traffic_volume (ρ = −0.742). La hora del día captura el patrón cíclico de demanda mejor que cualquier variable climática.",style={"fontFamily":B,"fontSize":"12px","color":MUTED,"lineHeight":"1.55","margin":"12px 0 0 0"}),
+        ],style={**card()}),
+        html.Div([
+            G(fig_weather(),340),
+            html.P("El clima despejado (Clear) y nublado (Clouds) concentran el mayor volumen promedio. Condiciones extremas como Thunderstorm, Snow o Fog reducen el flujo vehicular hasta un 40% respecto al promedio.",style={"fontFamily":B,"fontSize":"12px","color":MUTED,"lineHeight":"1.55","margin":"12px 0 0 0"}),
+        ],style={**card()}),
+    ],style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"16px"}),
 ],style={"marginBottom":"64px"})
 
 # ── MODELS ────────────────────────────────────────────────────
@@ -1025,8 +1179,37 @@ MODELS_S = html.Section(id="modelos",children=[
             model_note("Interpretación","La importancia de variables muestra qué señales usa más XGBoost. La hora del día domina el comportamiento del tráfico frente a variables climáticas aisladas.")
         ],style={**card()}),
         html.Div([
-            G(fig_ridge(),420),
-            model_note("Interpretación","Los coeficientes Ridge ayudan a explicar dirección e impacto lineal. Son útiles para interpretación, aunque su desempeño predictivo es menor que XGBoost.")
+            html.Div("LIME — Comparación de Escenarios",style={"fontFamily":B,"fontSize":"10px","letterSpacing":"0.13em","textTransform":"uppercase","fontWeight":"900","color":PRIMARY,"marginBottom":"14px"}),
+
+            # ── Alto tráfico ──
+            html.Div([
+                html.Div([
+                    html.Span("Alto tráfico",style={"fontFamily":B,"fontSize":"11px","fontWeight":"900","color":PRIMARY,"background":f"{PRIMARY}18","padding":"2px 10px","borderRadius":"999px","marginRight":"10px"}),
+                    html.Span("Mar · 12 PM · 20°C · Despejado · No festivo",style={"fontFamily":B,"fontSize":"11px","color":MUTED}),
+                ],style={"display":"flex","alignItems":"center","marginBottom":"6px"}),
+                html.Div([
+                    html.Span(f"Base {LIME_BASE:,}",style={"fontFamily":B,"fontSize":"11px","color":MUTED,"marginRight":"8px"}),
+                    html.Span("→",style={"color":MUTED,"marginRight":"8px"}),
+                    html.Span(f"{LIME_PRED:,} veh/h",style={"fontFamily":B,"fontSize":"13px","fontWeight":"900","color":PRIMARY}),
+                ],style={"display":"flex","alignItems":"center","marginBottom":"6px"}),
+                G(fig_lime(),320),
+            ],style={"marginBottom":"18px","paddingBottom":"18px","borderBottom":f"1px solid {BORDER}"}),
+
+            # ── Bajo tráfico ──
+            html.Div([
+                html.Div([
+                    html.Span("Bajo tráfico",style={"fontFamily":B,"fontSize":"11px","fontWeight":"900","color":DANGER,"background":f"{DANGER}18","padding":"2px 10px","borderRadius":"999px","marginRight":"10px"}),
+                    html.Span("Dom · 3 AM · 0°C · Nieve",style={"fontFamily":B,"fontSize":"11px","color":MUTED}),
+                ],style={"display":"flex","alignItems":"center","marginBottom":"6px"}),
+                html.Div([
+                    html.Span(f"Base {LIME_BASE:,}",style={"fontFamily":B,"fontSize":"11px","color":MUTED,"marginRight":"8px"}),
+                    html.Span("→",style={"color":MUTED,"marginRight":"8px"}),
+                    html.Span(f"{LIME_LOW_PRED:,} veh/h",style={"fontFamily":B,"fontSize":"13px","fontWeight":"900","color":DANGER}),
+                ],style={"display":"flex","alignItems":"center","marginBottom":"6px"}),
+                G(fig_lime_low(),320),
+            ],style={"marginBottom":"14px"}),
+
+            model_note("Interpretación LIME","Verde = empuja el volumen al alza · Rojo = lo reduce. hour_cos es el feature dominante en ambos escenarios: al mediodía (cos = −1) aporta +1,420 veh/h; a las 3 AM del domingo (cos = +0.71) arrastra −1,100 veh/h — confirmando que la codificación cíclica captura el ciclo diario mejor que cualquier variable climática."),
         ],style={**card()})
     ],style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"16px"}),
 ],style={"marginBottom":"64px"})
@@ -1345,7 +1528,19 @@ def page_contexto():
     return page_shell(html.Div([CONTEXTO]))
 
 def page_eda():
-    return page_shell(html.Div([EDA]))
+    toggle = html.Div([
+        html.Button("EDA", id="btn-eda-tab", n_clicks=0, style={
+            "fontFamily":B,"fontSize":"13px","fontWeight":"800","padding":"10px 28px",
+            "borderRadius":"999px","border":f"1px solid {PRIMARY}","cursor":"pointer",
+            "background":PRIMARY,"color":"#061016","transition":"all .2s",
+        }),
+        html.Button("ETL", id="btn-etl-tab", n_clicks=0, style={
+            "fontFamily":B,"fontSize":"13px","fontWeight":"800","padding":"10px 28px",
+            "borderRadius":"999px","border":f"1px solid {BORDER}","cursor":"pointer",
+            "background":"rgba(255,255,255,0.035)","color":FG,"transition":"all .2s",
+        }),
+    ], style={"display":"flex","gap":"10px","padding":"18px 0 10px 0"})
+    return page_shell(html.Div([toggle, EDA]))
 
 def page_prueba():
     return page_shell(html.Div([PRUEBA]))
@@ -1412,25 +1607,39 @@ def render_page(pathname):
     Output("eda-corr-value", "children"),
     Output("eda-corr-label", "children"),
     Output("eda-insight", "children"),
+    Output("eda-corr-card", "style"),
+    Output("eda-shapiro-chip", "style"),
     Input("eda-variable", "value"),
 )
 def update_eda_explorer(var):
     meta = EDA_META.get(var, EDA_META["hour"])
+    is_cat = meta["unit"] == "CAT"
+    desc = f"{meta['desc']} · Tipo: {meta['unit']}"
+    _card_base = {**card(),"width":"280px","minWidth":"240px","display":"flex","flexDirection":"column","justifyContent":"center"}
+    _show_card = _card_base
+    _hide_card = {**_card_base, "display":"none"}
+    _show_chip = {}
+    _hide_chip = {"display":"none"}
+
+    if is_cat:
+        insight = [
+            html.Span("Interpretacion: ",style={"color":FG,"fontWeight":"700"}),
+            f"{meta['title']} es una variable categórica. ",
+            "Para este tipo de variables se recomienda Kruskal-Wallis (3+ grupos) o Mann-Whitney U (2 grupos) en lugar de correlación Spearman o test de normalidad.",
+        ]
+        return fig_variable_behavior(var), fig_variable_target(var), desc, "", "", insight, _hide_card, _hide_chip
+
     corr = meta["corr"]
-    corr_color = PRIMARY if corr >= 0 else DANGER
     direction = "positiva" if corr >= 0 else "negativa"
     strength = "fuerte" if abs(corr) >= 0.5 else ("moderada" if abs(corr) >= 0.15 else "debil")
-    desc = f"{meta['desc']} · Tipo: {meta['unit']}"
     corr_value = f"{corr:+.3f}"
     corr_label = f"relacion {direction} {strength} con traffic_volume"
     insight = [
         html.Span("Interpretacion: ",style={"color":FG,"fontWeight":"700"}),
         f"{meta['title']} muestra una correlacion Spearman {corr_value} con el target. ",
-        f"Esto sugiere una relacion {direction} y {strength}; debe leerse junto con el grafico comparativo, porque algunas variables tienen comportamiento no lineal o categorico.",
+        f"Esto sugiere una relacion {direction} y {strength}; debe leerse junto con el grafico comparativo.",
     ]
-    fig_a = fig_variable_behavior(var)
-    fig_b = fig_variable_target(var)
-    return fig_a, fig_b, desc, corr_value, corr_label, insight
+    return fig_variable_behavior(var), fig_variable_target(var), desc, corr_value, corr_label, insight, _show_card, _show_chip
 
 
 def estimate_traffic(hour, dow, month, holiday, temp, humidity, wind_speed, wind_dir, visibility, pollution, rain, snow, clouds, weather):
@@ -1502,6 +1711,194 @@ def update_prediction(hour,dow,month,holiday,temp,humidity,wind_speed,wind_dir,v
     hour_txt = f"{int(hour or 0):02d}:00"
     explain = f"La estimación responde principalmente al patrón horario ({hour_txt}), el día seleccionado y las condiciones climáticas. Este simulador reproduce el comportamiento esperado del modelo final para presentar la lógica de predicción al usuario."
     return f"{value:,}".replace(",","."), label, style, prediction_gauge_fig(value), explain
+
+@app.callback(
+    Output("eda-etl-panel","children"),
+    Output("eda-main-content","style"),
+    Output("btn-eda-tab","style"),
+    Output("btn-etl-tab","style"),
+    Input("btn-eda-tab","n_clicks"),
+    Input("btn-etl-tab","n_clicks"),
+)
+def toggle_eda_etl(n_eda, n_etl):
+    _btn_active   = {"fontFamily":B,"fontSize":"13px","fontWeight":"800","padding":"10px 28px","borderRadius":"999px","cursor":"pointer","transition":"all .2s","border":f"1px solid {PRIMARY}","background":PRIMARY,"color":"#061016"}
+    _btn_inactive = {"fontFamily":B,"fontSize":"13px","fontWeight":"800","padding":"10px 28px","borderRadius":"999px","cursor":"pointer","transition":"all .2s","border":f"1px solid {BORDER}","background":"rgba(255,255,255,0.035)","color":FG}
+    _show = {}
+    _hide = {"display":"none"}
+
+    etl_active = (n_etl or 0) > (n_eda or 0)
+    if not etl_active:
+        return None, _show, _btn_active, _btn_inactive
+
+    # ── 1. ¿Por qué? + Fórmula ───────────────────────────────
+    header = html.Div([
+        html.Div([
+            html.Div([
+                html.Div("¿POR QUÉ CODIFICACIÓN CÍCLICA?",
+                         style={"fontFamily":B,"fontSize":"10px","letterSpacing":"0.14em","textTransform":"uppercase",
+                                "fontWeight":"900","color":PRIMARY,"marginBottom":"12px"}),
+                html.H2("La hora es circular, no lineal",
+                        style={"fontFamily":H,"fontSize":"clamp(20px,2.5vw,30px)","fontWeight":"800","color":FG,
+                               "margin":"0 0 14px 0","lineHeight":"1.1"}),
+                html.P("Un modelo que recibe la hora como número entero cree que las 23:00 y las 0:00 están a 23 horas de distancia — cuando en realidad son consecutivas. La codificación cíclica proyecta cada hora como un punto en el círculo unitario, eliminando esa discontinuidad artificial.",
+                       style={"fontFamily":B,"fontSize":"14px","lineHeight":"1.75","color":MUTED,"margin":"0 0 18px 0"}),
+                html.Div([
+                    html.Div([
+                        html.Span("Sin codificación: ",style={"color":DANGER,"fontWeight":"700","fontFamily":B,"fontSize":"13px"}),
+                        html.Span("distancia(23, 0) = 23 unidades",style={"color":MUTED,"fontFamily":"monospace","fontSize":"13px"}),
+                    ],style={"marginBottom":"8px"}),
+                    html.Div([
+                        html.Span("Con codificación: ",style={"color":PRIMARY,"fontWeight":"700","fontFamily":B,"fontSize":"13px"}),
+                        html.Span("distancia(h=23, h=0) ≈ 0.07 unidades",style={"color":MUTED,"fontFamily":"monospace","fontSize":"13px"}),
+                    ]),
+                ],style={"padding":"14px 18px","borderRadius":"12px","background":f"{DANGER}08",
+                         "border":f"1px solid {BORDER}","marginBottom":"0"}),
+            ],style={"flex":"1","minWidth":"280px"}),
+
+            # Fórmula visual
+            html.Div([
+                html.Div("TRANSFORMACIÓN",
+                         style={"fontFamily":B,"fontSize":"9px","letterSpacing":"0.15em","textTransform":"uppercase",
+                                "fontWeight":"900","color":MUTED,"marginBottom":"18px","textAlign":"center"}),
+                html.Div([
+                    html.Div([
+                        html.Span("hour", style={"color":MUTED,"fontSize":"14px","fontFamily":"monospace"}),
+                        html.Span("  →  ", style={"color":BORDER,"fontSize":"18px","margin":"0 4px"}),
+                        html.Div([
+                            html.Span("hour_sin", style={"color":PRIMARY,"fontWeight":"900","fontSize":"16px","fontFamily":"monospace"}),
+                            html.Span(" = sin(", style={"color":MUTED,"fontSize":"15px","fontFamily":"monospace"}),
+                            html.Span("2π", style={"color":FG,"fontSize":"16px","fontWeight":"700"}),
+                            html.Span(" · h / 24)", style={"color":MUTED,"fontSize":"15px","fontFamily":"monospace"}),
+                        ],style={"display":"flex","alignItems":"center","flexWrap":"wrap","gap":"2px"}),
+                    ],style={"display":"flex","alignItems":"center","flexWrap":"wrap","gap":"8px",
+                             "marginBottom":"16px","padding":"16px 20px","borderRadius":"14px",
+                             "background":f"{PRIMARY}0d","border":f"1px solid {PRIMARY}30"}),
+                    html.Div([
+                        html.Span("hour", style={"color":MUTED,"fontSize":"14px","fontFamily":"monospace"}),
+                        html.Span("  →  ", style={"color":BORDER,"fontSize":"18px","margin":"0 4px"}),
+                        html.Div([
+                            html.Span("hour_cos", style={"color":CYAN,"fontWeight":"900","fontSize":"16px","fontFamily":"monospace"}),
+                            html.Span(" = cos(", style={"color":MUTED,"fontSize":"15px","fontFamily":"monospace"}),
+                            html.Span("2π", style={"color":FG,"fontSize":"16px","fontWeight":"700"}),
+                            html.Span(" · h / 24)", style={"color":MUTED,"fontSize":"15px","fontFamily":"monospace"}),
+                        ],style={"display":"flex","alignItems":"center","flexWrap":"wrap","gap":"2px"}),
+                    ],style={"display":"flex","alignItems":"center","flexWrap":"wrap","gap":"8px",
+                             "padding":"16px 20px","borderRadius":"14px",
+                             "background":f"{CYAN}0d","border":f"1px solid {CYAN}30"}),
+                ]),
+                html.Div("Periodo: 24 horas · Rango: [−1, +1]",
+                         style={"fontFamily":B,"fontSize":"11px","color":MUTED,"textAlign":"center","marginTop":"14px"}),
+            ],style={"flex":"0.8","minWidth":"300px","display":"flex","flexDirection":"column","justifyContent":"center",
+                     "padding":"28px","background":"rgba(3,8,18,0.5)","borderRadius":"18px",
+                     "border":f"1px solid {BORDER}","backdropFilter":"blur(8px)"}),
+        ],style={"display":"flex","gap":"24px","flexWrap":"wrap","alignItems":"stretch"}),
+    ], style={**card(), "marginBottom":"16px"})
+
+    code_section = html.Div()  # vacío — bloque de código eliminado
+
+    # ── 4. Visualización — dos paneles ────────────────────────
+    charts = html.Div([
+        html.Div([
+            html.Div("Proyección cíclica: 24 horas en el círculo unitario",
+                     style={"fontFamily":H,"fontSize":"14px","fontWeight":"700","color":FG,"marginBottom":"8px"}),
+            G(fig_etl_circle(), 400),
+            html.P("Cada hora queda como un punto único en el círculo. Horas consecutivas — incluida la transición 23 → 0 — quedan geométricamente próximas.",
+                   style={"fontFamily":B,"fontSize":"12px","color":MUTED,"lineHeight":"1.6","margin":"10px 0 0 0"}),
+        ], style={**card()}),
+        html.Div([
+            html.Div("Componentes cíclicas a lo largo del día",
+                     style={"fontFamily":H,"fontSize":"14px","fontWeight":"700","color":FG,"marginBottom":"8px"}),
+            G(fig_etl_curves(), 400),
+            html.P("hour_sin (verde) alcanza su máximo ~6 AM y mínimo ~18 PM. hour_cos (cyan) distingue madrugada (+1) de mediodía (−1). Juntos identifican cualquier hora sin ambigüedad.",
+                   style={"fontFamily":B,"fontSize":"12px","color":MUTED,"lineHeight":"1.6","margin":"10px 0 0 0"}),
+        ], style={**card()}),
+    ], style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"16px","marginBottom":"16px"})
+
+    # ── 5. Sección 10.5.1 — Interpretación ───────────────────
+    interpretation = html.Div([
+        html.Div("10.5.1  Interpretación de la Codificación Cíclica",
+                 style={"fontFamily":H,"fontSize":"18px","fontWeight":"800","color":FG,"marginBottom":"14px"}),
+        html.P("La transformación sin/cos proyecta cada hora sobre el círculo unitario. Ambas componentes deben usarse juntas para representar unívocamente cualquier hora del día:",
+               style={"fontFamily":B,"fontSize":"13px","color":MUTED,"lineHeight":"1.7","marginBottom":"16px"}),
+        html.Div([
+            html.Div([html.Span("hour_cos ≈ +1", style={"color":CYAN,"fontFamily":"monospace","fontWeight":"700","marginRight":"8px"}),
+                      html.Span("→ madrugada → el modelo predice: tráfico bajo", style={"color":MUTED})],
+                     style={"marginBottom":"8px","fontSize":"13px","fontFamily":B}),
+            html.Div([html.Span("hour_cos ≈ −1", style={"color":CYAN,"fontFamily":"monospace","fontWeight":"700","marginRight":"8px"}),
+                      html.Span("→ mediodía → el modelo predice: tráfico alto", style={"color":MUTED})],
+                     style={"marginBottom":"8px","fontSize":"13px","fontFamily":B}),
+            html.Div([html.Span("hour_sin ≈ +1", style={"color":PRIMARY,"fontFamily":"monospace","fontWeight":"700","marginRight":"8px"}),
+                      html.Span("→ ~6 AM → entrada al trabajo", style={"color":MUTED})],
+                     style={"marginBottom":"8px","fontSize":"13px","fontFamily":B}),
+            html.Div([html.Span("hour_sin ≈ −1", style={"color":PRIMARY,"fontFamily":"monospace","fontWeight":"700","marginRight":"8px"}),
+                      html.Span("→ ~18 PM → salida del trabajo", style={"color":MUTED})],
+                     style={"fontSize":"13px","fontFamily":B}),
+        ], style={"background":f"{CYAN}08","border":f"1px solid {BORDER}","borderRadius":"12px","padding":"16px 20px","marginBottom":"20px"}),
+
+        html.P("La mayor ventaja es que la discontinuidad entre hora 23 y hora 0 desaparece. Ambas horas tienen coordenadas casi idénticas (sin ≈ −0.26, cos ≈ 1.00), lo que el modelo interpreta correctamente como horas consecutivas — algo imposible si se usara la hora como número entero (0 y 23 estarían a 23 unidades de distancia).",
+               style={"fontFamily":B,"fontSize":"13px","lineHeight":"1.75","color":MUTED,"marginBottom":"20px"}),
+
+        html.Div("CORRELACIÓN SPEARMAN CON traffic_volume",
+                 style={"fontFamily":B,"fontSize":"10px","letterSpacing":"0.13em","textTransform":"uppercase",
+                        "fontWeight":"900","color":MUTED,"marginBottom":"14px"}),
+        html.Div([
+            # hour_cos
+            html.Div([
+                html.Div([
+                    html.Span("hour_cos", style={"fontFamily":"monospace","fontSize":"15px","fontWeight":"900","color":CYAN}),
+                    html.Span(" · Codificación cíclica", style={"fontFamily":B,"fontSize":"11px","color":MUTED,"marginLeft":"8px"}),
+                ],style={"marginBottom":"10px"}),
+                html.Div("−0.742",
+                         style={"fontFamily":H,"fontSize":"48px","fontWeight":"900","color":CYAN,
+                                "lineHeight":"1","marginBottom":"10px","letterSpacing":"-0.04em"}),
+                html.Div("Correlación negativa muy fuerte con traffic_volume",
+                         style={"fontFamily":B,"fontSize":"12px","color":MUTED,"marginBottom":"14px"}),
+                html.Div(style={"height":"6px","borderRadius":"999px","background":f"{BORDER}","marginBottom":"6px","overflow":"hidden"},
+                         children=[html.Div(style={"height":"100%","width":"74.2%","background":CYAN,"borderRadius":"999px"})]),
+                html.Div([
+                    html.Span("0%", style={"fontFamily":B,"fontSize":"10px","color":MUTED}),
+                    html.Span("|ρ| = 0.742", style={"fontFamily":B,"fontSize":"10px","color":CYAN,"fontWeight":"700"}),
+                    html.Span("100%", style={"fontFamily":B,"fontSize":"10px","color":MUTED}),
+                ],style={"display":"flex","justifyContent":"space-between"}),
+                html.P("La variable con mayor poder predictivo del dataset. hour_cos captura el ciclo madrugada–mediodía y explica directamente los picos de tráfico.",
+                       style={"fontFamily":B,"fontSize":"12px","color":MUTED,"lineHeight":"1.6","margin":"12px 0 0 0"}),
+            ],style={"flex":"1","minWidth":"240px","padding":"22px","borderRadius":"16px",
+                     "background":f"{CYAN}08","border":f"1px solid {CYAN}30"}),
+
+            # hour_sin
+            html.Div([
+                html.Div([
+                    html.Span("hour_sin", style={"fontFamily":"monospace","fontSize":"15px","fontWeight":"900","color":PRIMARY}),
+                    html.Span(" · Codificación cíclica", style={"fontFamily":B,"fontSize":"11px","color":MUTED,"marginLeft":"8px"}),
+                ],style={"marginBottom":"10px"}),
+                html.Div("−0.167",
+                         style={"fontFamily":H,"fontSize":"48px","fontWeight":"900","color":PRIMARY,
+                                "lineHeight":"1","marginBottom":"10px","letterSpacing":"-0.04em"}),
+                html.Div("Correlación negativa débil con traffic_volume",
+                         style={"fontFamily":B,"fontSize":"12px","color":MUTED,"marginBottom":"14px"}),
+                html.Div(style={"height":"6px","borderRadius":"999px","background":f"{BORDER}","marginBottom":"6px","overflow":"hidden"},
+                         children=[html.Div(style={"height":"100%","width":"16.7%","background":PRIMARY,"borderRadius":"999px"})]),
+                html.Div([
+                    html.Span("0%", style={"fontFamily":B,"fontSize":"10px","color":MUTED}),
+                    html.Span("|ρ| = 0.167", style={"fontFamily":B,"fontSize":"10px","color":PRIMARY,"fontWeight":"700"}),
+                    html.Span("100%", style={"fontFamily":B,"fontSize":"10px","color":MUTED}),
+                ],style={"display":"flex","justifyContent":"space-between"}),
+                html.P("Complementa a hour_cos diferenciando el ciclo entrada–salida del trabajo (~6 AM vs ~18 PM). Individualmente es débil, pero junto a hour_cos describe cualquier hora del día.",
+                       style={"fontFamily":B,"fontSize":"12px","color":MUTED,"lineHeight":"1.6","margin":"12px 0 0 0"}),
+            ],style={"flex":"1","minWidth":"240px","padding":"22px","borderRadius":"16px",
+                     "background":f"{PRIMARY}08","border":f"1px solid {PRIMARY}30"}),
+        ],style={"display":"flex","gap":"16px","flexWrap":"wrap","marginBottom":"18px"}),
+
+        html.Div([
+            html.Span("Transformamos la variable hora usando codificación cíclica con seno y coseno para preservar la naturaleza periódica del tiempo. Esto evita que el modelo interprete incorrectamente horas cercanas como distantes, por ejemplo 23:00 y 00:00.",
+                      style={"fontFamily":B,"fontSize":"13px","color":MUTED,"lineHeight":"1.7","fontStyle":"italic"}),
+        ], style={"padding":"14px 18px","borderLeft":f"3px solid {PRIMARY}","background":f"{PRIMARY}08","borderRadius":"0 10px 10px 0"}),
+
+    ], style={**card()})
+
+    etl_content = html.Div([header, code_section, charts, interpretation])
+    return etl_content, _hide, _btn_inactive, _btn_active
+
 
 server = app.server
 
