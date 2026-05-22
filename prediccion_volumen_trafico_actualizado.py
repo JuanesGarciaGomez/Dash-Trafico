@@ -102,7 +102,7 @@ ZONES = [("Centro",82,DANGER),("Norte",54,ACCENT),("Sur",31,PRIMARY),
 # HELPERS
 # ─────────────────────────────────────────────────────────────
 def card(extra=None):
-    s = {"background":CARD,"border":f"1px solid {BORDER}","borderRadius":"20px","padding":"24px"}
+    s = {"background":CARD,"border":"none","borderRadius":"20px","padding":"24px"}
     if extra: s.update(extra)
     return s
 
